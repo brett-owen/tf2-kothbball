@@ -24,6 +24,7 @@ public Plugin kothbball =
 
 Database db;
 
+Handle player_WelcomeTimer[MAXPLAYERS+1];
 char player_SteamId[MAXPLAYERS+1][32];
 char player_Name[MAXPLAYERS+1][32];
 int player_Wins[MAXPLAYERS+1];
@@ -119,6 +120,8 @@ public OnClientPostAdminCheck(int client)
   {
     playerStatus[client] = TSPEC;
     PrintCenterText(client, "Use !add to join the game, !remove to return to spectator");
+
+    player_WelcomeTimer[client] = CreateTimer(10.0, Timer_Welcome, GetClientUserId(client));
 
     char query[256];
     char sqlDirtySteamId[31];
@@ -640,6 +643,16 @@ public Action:Command_ResetStreaks(int client, int args)
   SQL_TQuery(db, SQL_ErrorCheckCallback, query);
   PrintToChatAll("Win Streaks Reset!");
 }
+
+public Action:Timer_Welcome(Handle timer, any userid)
+{
+  int client = GetClientOfUserId(userid);
+  if(!isValidClient(client))
+    return;
+
+  PrintToChat(client, "Welcome to KOTH BBALL, use !add to join the game.");
+}
+
 
 // SQL
 public SQL_setup()
