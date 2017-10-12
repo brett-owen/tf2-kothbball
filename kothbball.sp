@@ -41,23 +41,13 @@ public OnPluginStart()
 public OnMapStart()
 {
     HookEvent("teamplay_round_win", Event_RoundEnd, EventHookMode_Pre);
+}
 
+public OnConfigsExecuted()
+{
     ServerCommand("sm_respawn_time_enabled 1");
     ServerCommand("sm_respawn_time_blue 2");
     ServerCommand("sm_respawn_time_red 2");
-
-    ServerCommand("mp_tournament 1");
-    ServerCommand("mp_enableroundwaittime 1");
-    ServerCommand("mp_maxrounds 1");
-    ServerCommand("mp_timelimit 10");
-    ServerCommand("mp_winlimit 10");
-    ServerCommand("mp_windifference 10");
-
-    ServerCommand("tftrue_no_hats 0");
-    ServerCommand("tftrue_whitelist_id 6895");
-    ServerCommand("tftrue_logs_accuracy 1");
-    ServerCommand("tftrue_logs_roundend 1");
-    ServerCommand("tftrue_freezecam 1");
 
     ServerCommand("tf_tournament_classlimit_scout 0");
     ServerCommand("tf_tournament_classlimit_soldier 2");
