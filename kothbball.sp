@@ -364,15 +364,10 @@ int getQueueSize()
 
 int getQueuePosition(int client)
 {
-  int index = 0;
   int position = 0;
-  while(index < MAXPLAYERS)
+  while(serverQueue[position] != client)
   {
-    if(serverQueue[index] == client) 
-    {
-      position++;
-    }
-   index++; 
+    position++;
   }
   return position;
 }
