@@ -18,9 +18,18 @@ public Plugin kothbball =
     name = "KOTH BBALL",
     author = "Pye",
     description = "KOTH mode for TF2BBALL",
-    version = "0.0.1",
+    version = "0.0.2",
     url = "http://www.sourcemod.net/"
 };
+
+Database db;
+
+char player_SteamId[MAXPLAYERS+1][32];
+char player_Name[MAXPLAYERS+1][32];
+int player_Wins[MAXPLAYERS+1];
+int player_Losses[MAXPLAYERS+1];
+int player_TopStreak[MAXPLAYERS+1];
+int player_Streak[MAXPLAYERS+1];
 
 int serverQueue[MAXPLAYERS+1];
 int playerStatus[MAXPLAYERS+1];
@@ -35,7 +44,10 @@ public OnPluginStart()
   RegConsoleCmd("spectate", Command_JoinTeam, "Remove from game.");
   RegConsoleCmd("jointeam", Command_JoinTeam, "jointeam");
   RegConsoleCmd("mystatus", Command_MyStatus, "Print the queue");
+  RegConsoleCmd("streaks", Command_Streaks, "Show top streaks");
   RegAdminCmd("punt", Command_Punt, ADMFLAG_GENERIC, "Removes player by id (from console) from queue");
+  RegAdminCmd("resetstreaks", Command_ResetStreaks, ADMFLAG_GENERIC, "Resets Server Top Streaks");
+  SQL_setup();
 }
 
 public OnMapStart()
@@ -101,12 +113,21 @@ public OnClientDisconnect(int client)
   }
 }
 
-public OnClientConnected(int client)
+public OnClientPostAdminCheck(int client)
 {
   if (isValidClient(client))
   {
     playerStatus[client] = TSPEC;
     PrintCenterText(client, "Use !add to join the game, !remove to return to spectator");
+
+    char query[256];
+    char sqlDirtySteamId[31];
+    char sqlSteamId[64];
+    GetClientAuthId(client, AuthId_Steam2, sqlDirtySteamId, sizeof(sqlDirtySteamId));
+    SQL_EscapeString(db, sqlDirtySteamId, sqlSteamId, sizeof(sqlSteamId));
+    strcopy(player_SteamId[client], 32, sqlSteamId);
+    Format(query, sizeof(query), "SELECT wins, losses, topstreak FROM kothbball_stats WHERE steamid='%s' LIMIT 1", sqlSteamId);
+    SQL_TQuery(db, SQL_OnConnectQuery, query, client);
   }
 }
 
@@ -436,17 +457,36 @@ public Action:scrambleBlu(Handle timer)
 
 public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 {
+  int winners[TEAM_SIZE];
+  int losers[TEAM_SIZE];
   int winner = GetEventInt(event, "team");
-  PrintCenterTextAll(">>>>>| GAME END! SPLITTING TEAMS |<<<<<");
   if(winner == TEAM_RED)
   {
+    winners = redTeam;
+    losers = bluTeam;
     CreateTimer(5.0, scrambleRed);
   }
-  else if(winner == TEAM_BLU)
+  if(winner == TEAM_BLU)
   {
+    winners = bluTeam;
+    losers = redTeam;
     CreateTimer(5.0, scrambleBlu);
   }
 
+  for(int i = 0; i < TEAM_SIZE; i++)
+  {
+    player_Streak[winners[i]]++;
+    player_Streak[losers[i]] = 0;
+    if(player_Streak[winners[i]] > player_TopStreak[winners[i]])
+    {
+      player_TopStreak[winners[i]] = player_Streak[winners[i]];
+      SQL_updateTopStreak(winners[i], player_TopStreak[winners[i]]);
+    }
+    if(winners[i] != 0)
+      PrintToChatAll("%s is on a %d game winning streak.", player_Name[winners[i]], player_Streak[winners[i]]);
+  }
+
+  PrintCenterTextAll(">>>>>| GAME END - SPLITTING TEAMS |<<<<<");
   SetEventInt(event, "silent", true);
   return Plugin_Continue;
 }
@@ -584,4 +624,104 @@ public Action:Command_Punt(int client, int args)
       fillTeams();
   }
   return Plugin_Handled;
+}
+
+public Action:Command_Streaks(int client, int args)
+{
+  char query[256];
+  Format(query, sizeof(query), "SELECT topstreak,name FROM kothbball_stats ORDER BY topstreak DESC LIMIT 5");
+  SQL_TQuery(db, SQL_TopStreaks, query);
+}
+
+public Action:Command_ResetStreaks(int client, int args)
+{
+  char query[256]
+  Format(query, sizeof(query), "UPDATE kothbball_stats SET topstreak=%d", 0);
+  SQL_TQuery(db, SQL_ErrorCheckCallback, query);
+  PrintToChatAll("Win Streaks Reset!");
+}
+
+// SQL
+public SQL_setup()
+{
+  char error[256];
+  db = SQL_Connect("storage-local", true, error, sizeof(error));
+
+  if(db == INVALID_HANDLE)
+    SetFailState("Could not connect to db: %s", error);
+
+  SQL_TQuery(db, SQL_ErrorCheckCallback, "CREATE TABLE IF NOT EXISTS kothbball_stats (steamid TEXT, name TEXT, wins INTEGER, losses INTEGER, topstreak INTEGER)");
+}
+
+public SQL_updateTopStreak(int client, int topstreak)
+{
+  char query[256]
+  Format(query, sizeof(query), "UPDATE kothbball_stats SET topstreak=%d WHERE steamid='%s'", topstreak, player_SteamId[client]);
+  SQL_TQuery(db, SQL_ErrorCheckCallback, query);
+}
+
+public SQL_TopStreaks(Handle owner, Handle cb, const String:error[], int client)
+{
+	if(cb==INVALID_HANDLE)
+	{
+		LogError("getTopStreaks failed: %s", error);
+		return;
+	} 
+  char name[64];
+  int streak;
+  int i = 0;
+  PrintToChatAll("-------TOP STREAKS-------")
+  while(SQL_FetchRow(cb))
+  {
+    if(i > 5)
+      break;
+    SQL_FetchString(cb, 1, name, 64);
+    streak = SQL_FetchInt(cb, 0);
+    PrintToChatAll("%d | %s", streak, name);
+    i++;
+  }
+}
+
+public SQL_OnConnectQuery(Handle owner, Handle cb, const String:error[], int client)
+{
+	if(cb==INVALID_HANDLE)
+	{
+		LogError("OnConnectQuery failed: %s", error);
+		return;
+	} 
+  if(!isValidClient(client))
+  {
+		LogError("OnConnectQuery failed: %d is invalid client", client);
+		return;
+  }
+
+  char query[512];
+  char sqlDirtyName[MAX_NAME_LENGTH];
+  char sqlName[(MAX_NAME_LENGTH*2)+1];
+  GetClientName(client, sqlDirtyName, sizeof(sqlDirtyName));
+  SQL_EscapeString(db, sqlDirtyName, sqlName, sizeof(sqlName));
+
+  if(SQL_FetchRow(cb))
+  {
+    player_Wins[client] = SQL_FetchInt(cb, 0);
+    player_Losses[client] = SQL_FetchInt(cb, 1);
+    player_TopStreak[client] = SQL_FetchInt(cb, 2);
+    player_Streak[client] = 0;
+    strcopy(player_Name[client], 32, sqlName);
+		Format(query, sizeof(query), "UPDATE kothbball_stats SET name='%s' WHERE steamid='%s'", sqlName, player_SteamId[client]);
+		SQL_TQuery(db, SQL_ErrorCheckCallback, query);
+  } else {
+    Format(query, sizeof(query), "INSERT INTO kothbball_stats VALUES('%s', '%s', 0, 0, 0)", player_SteamId[client], sqlName);
+    SQL_TQuery(db, SQL_ErrorCheckCallback, query);
+    player_Wins[client] = 0;
+    player_Losses[client] = 0;
+    player_TopStreak[client] = 0;
+    player_Streak[client] = 0;
+    strcopy(player_Name[client], 32, sqlName);
+  }
+}
+
+public SQL_ErrorCheckCallback(Handle owner, Handle cb, const String:error[], any data)
+{
+  return;
 }
