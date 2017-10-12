@@ -6,3 +6,5 @@ tf2-kothbball
 In-game, use `!add` in chat to join the game, `!remove` in chat to return to spectator. Using `!mystatus` in chat will show your current status as well.
 
 Admins can use `!punt <PLAYERID>` to remove players from the queue or the game.
+
+Note that this plugin **requires** the [TF2 Respawn System by WoZeR](https://forums.alliedmods.net/showthread.php?p=611953) plugin in order to properly set the respawn times to 2 seconds.
