@@ -2,15 +2,13 @@
 #include <tf2_stocks>
 #include <sdkhooks>
 
-#define TRED 2
-#define TBLU 3
-#define QUEUE 1
-#define TSPEC 0
-
+// ============================================================================
+// Defines
+// ============================================================================
 #define TEAM_SPEC 1
 #define TEAM_RED 2
 #define TEAM_BLU 3
-
+#define TEAM_QUEUE 0
 #define TEAM_SIZE 2
 
 public Plugin kothbball =
@@ -18,12 +16,23 @@ public Plugin kothbball =
     name = "KOTH BBALL",
     author = "Pye",
     description = "KOTH mode for TF2BBALL",
-    version = "0.0.2",
+    version = "0.1.0",
     url = "http://www.sourcemod.net/"
 };
 
-Database db;
 
+// ============================================================================
+// Server Variables 
+// ============================================================================
+Database db;
+int serverQueue[MAXPLAYERS+1];
+int redTeam[TEAM_SIZE];
+int bluTeam[TEAM_SIZE];
+
+
+// ============================================================================
+// Player Variables 
+// ============================================================================
 Handle player_WelcomeTimer[MAXPLAYERS+1];
 char player_SteamId[MAXPLAYERS+1][32];
 char player_Name[MAXPLAYERS+1][32];
@@ -31,13 +40,12 @@ int player_Wins[MAXPLAYERS+1];
 int player_Losses[MAXPLAYERS+1];
 int player_TopStreak[MAXPLAYERS+1];
 int player_Streak[MAXPLAYERS+1];
-
-int serverQueue[MAXPLAYERS+1];
 int playerStatus[MAXPLAYERS+1];
 
-int redTeam[TEAM_SIZE];
-int bluTeam[TEAM_SIZE];
 
+// ============================================================================
+// Forwards 
+// ============================================================================
 public OnPluginStart()
 {
   RegConsoleCmd("add", Command_Add, "Add to game.");
@@ -86,23 +94,23 @@ public OnClientDisconnect(int client)
     GetClientName(client, playername, sizeof(playername));
     PrintToChatAll("%s - removed from queue", playername);
 
-    if(playerStatus[client] == QUEUE)
+    if(playerStatus[client] == TEAM_QUEUE)
     {
       leaveQueue(client);
     }
-    else if(playerStatus[client] == TRED || playerStatus[client] == TBLU)
+    else if(playerStatus[client] == TEAM_RED || playerStatus[client] == TEAM_BLU)
     {
       for(int i = 0; i < TEAM_SIZE; i++)
       {
         if(redTeam[i] == client)
         {
           redTeam[i] = 0;
-          playerStatus[client] = TSPEC;
+          playerStatus[client] = TEAM_SPEC;
         }
         else if(bluTeam[i] == client)
         {
           bluTeam[i] = 0;
-          playerStatus[client] = TSPEC;
+          playerStatus[client] = TEAM_SPEC;
         }
       }
     }
@@ -118,7 +126,7 @@ public OnClientPostAdminCheck(int client)
 {
   if (isValidClient(client))
   {
-    playerStatus[client] = TSPEC;
+    playerStatus[client] = TEAM_SPEC;
     PrintCenterText(client, "Use !add to join the game, !remove to return to spectator");
 
     player_WelcomeTimer[client] = CreateTimer(10.0, Timer_Welcome, GetClientUserId(client));
@@ -134,22 +142,25 @@ public OnClientPostAdminCheck(int client)
   }
 }
 
+// ============================================================================
+// Queue 
+// ============================================================================
 void joinQueue(int client)
 {
-  if(playerStatus[client] == TSPEC)
+  if(playerStatus[client] == TEAM_SPEC)
   {
     int queue_pos = 0;
     while(serverQueue[queue_pos])
       queue_pos++;
 
     serverQueue[queue_pos] = client;
-    playerStatus[client] = QUEUE;
+    playerStatus[client] = TEAM_QUEUE;
   }
 }
 
 void leaveQueue(int client)
 {
-  if(playerStatus[client] == QUEUE)
+  if(playerStatus[client] == TEAM_QUEUE)
   {
     int player_pos = 0;
     while(serverQueue[player_pos] != client)
@@ -199,6 +210,10 @@ int popQueue()
   return 0;
 }
 
+
+// ============================================================================
+// Team Balance Logic
+// ============================================================================
 bool fillTeams()
 {
   int player;
@@ -310,14 +325,14 @@ bool changePlayerTeam(player, team)
     return false;
   }
 
-  if(playerStatus[player] == TRED)
+  if(playerStatus[player] == TEAM_RED)
   {
     if(redTeam[0] == player)
       redTeam[0] = 0;
     if(redTeam[1] == player)
       redTeam[1] = 0;
   }
-  else if(playerStatus[player] == TBLU)
+  else if(playerStatus[player] == TEAM_BLU)
   {
     if(bluTeam[0] == player)
       bluTeam[0] = 0;
@@ -333,7 +348,7 @@ bool changePlayerTeam(player, team)
       {
         redTeam[i] = player;
         ChangeClientTeam(player, team);
-        playerStatus[player] = TRED;
+        playerStatus[player] = TEAM_RED;
         return true;
       }
     }
@@ -346,7 +361,7 @@ bool changePlayerTeam(player, team)
       {
         bluTeam[i] = player;
         ChangeClientTeam(player, team);
-        playerStatus[player] = TBLU;
+        playerStatus[player] = TEAM_BLU;
         return true;
       }
     }
@@ -354,8 +369,25 @@ bool changePlayerTeam(player, team)
 
   ForcePlayerSuicide(player);
   ChangeClientTeam(player, team);
-  playerStatus[player] = TSPEC
+  playerStatus[player] = TEAM_SPEC
   return true;
+}
+
+
+// ============================================================================
+// Helpers
+// ============================================================================
+bool isValidClient(int client)
+{
+	if(client < 1 || client > MaxClients)
+		return false;
+	if(!IsClientConnected(client))
+		return false;
+	if(IsClientInKickQueue(client))
+		return false;
+	if(IsClientSourceTV(client))
+		return false;
+	return IsClientInGame(client);
 }
 
 int getRedTeamSize()
@@ -364,7 +396,7 @@ int getRedTeamSize()
   int size = 0;
   while(index < MAXPLAYERS)
   {
-    if(playerStatus[index] == TRED)
+    if(playerStatus[index] == TEAM_RED)
     {
       size++;
     }
@@ -379,7 +411,7 @@ int getBluTeamSize()
   int size = 0;
   while(index < MAXPLAYERS)
   {
-    if(playerStatus[index] == TBLU)
+    if(playerStatus[index] == TEAM_BLU)
     {
       size++;
     }
@@ -394,7 +426,7 @@ int getQueueSize()
   int size = 0;
   while(index < MAXPLAYERS)
   {
-    if(playerStatus[index] == QUEUE) 
+    if(playerStatus[index] == TEAM_QUEUE) 
     {
       size++;
     }
@@ -413,51 +445,10 @@ int getQueuePosition(int client)
   return position;
 }
 
-bool isValidClient(iClient)
-{
-	if(iClient < 1 || iClient > MaxClients)
-		return false;
-	if(!IsClientConnected(iClient))
-		return false;
-	if(IsClientInKickQueue(iClient))
-		return false;
-	if(IsClientSourceTV(iClient))
-		return false;
-	return IsClientInGame(iClient);
-}
 
-public Action:Command_JoinTeam(int client, int args)
-{
-  if (!isValidClient(client))
-    return Plugin_Continue;
-
-  if(playerStatus[client] == TSPEC)
-  {
-    changePlayerTeam(client, TEAM_SPEC);
-  }
-  else if(playerStatus[client] == TRED)
-  {
-    changePlayerTeam(client, TEAM_RED);
-  }
-  else if(playerStatus[client] == TBLU)
-  {
-    changePlayerTeam(client, TEAM_BLU);
-  }
-
-  if(getRedTeamSize() + getBluTeamSize() <= 4)
-    fillTeams();
-  return Plugin_Handled;
-}
-
-public Action:scrambleRed(Handle timer)
-{
-  rotateTeams(TEAM_RED);
-}
-public Action:scrambleBlu(Handle timer)
-{
-  rotateTeams(TEAM_BLU);
-}
-
+// ============================================================================
+// Events
+// ============================================================================
 public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 {
   int winners[TEAM_SIZE];
@@ -494,10 +485,31 @@ public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadca
   return Plugin_Continue;
 }
 
-public Action:OnGetGameDescription(String:gameDesc[64])
+
+// ============================================================================
+// Commands
+// ============================================================================
+public Action:Command_JoinTeam(int client, int args)
 {
-    Format(gameDesc, sizeof(gameDesc), "KOTHBBALL");
-    return Plugin_Changed;
+  if (!isValidClient(client))
+    return Plugin_Continue;
+
+  if(playerStatus[client] == TEAM_SPEC)
+  {
+    changePlayerTeam(client, TEAM_SPEC);
+  }
+  else if(playerStatus[client] == TEAM_RED)
+  {
+    changePlayerTeam(client, TEAM_RED);
+  }
+  else if(playerStatus[client] == TEAM_BLU)
+  {
+    changePlayerTeam(client, TEAM_BLU);
+  }
+
+  if(getRedTeamSize() + getBluTeamSize() <= 4)
+    fillTeams();
+  return Plugin_Handled;
 }
 
 public Action:Command_Add(int client, int args)
@@ -509,16 +521,16 @@ public Action:Command_Add(int client, int args)
   GetClientName(client, playername, sizeof(playername));
   TF2_SetPlayerClass(client, TFClass_Soldier);
 
-  if(playerStatus[client] == TSPEC)
+  if(playerStatus[client] == TEAM_SPEC)
   {
     joinQueue(client);
     PrintToChatAll("%s added to queue at position: %d", playername, getQueuePosition(client));
   }
-  else if(playerStatus[client] == QUEUE)
+  else if(playerStatus[client] == TEAM_QUEUE)
   {
     PrintToChatAll("%s is already in queue!", playername);
   }
-  else if(playerStatus[client] == TRED || playerStatus[client] == TBLU)
+  else if(playerStatus[client] == TEAM_RED || playerStatus[client] == TEAM_BLU)
   {
     PrintToChatAll("%s is already in game!", playername);
   }
@@ -528,62 +540,6 @@ public Action:Command_Add(int client, int args)
     if(getRedTeamSize() + getBluTeamSize() <= 4)
       fillTeams();
   }
-  return Plugin_Handled;
-}
-
-public Action:Command_Remove(int client, int args)
-{
-  if (!isValidClient(client))
-    return Plugin_Continue;
-
-  char playername[64];
-  GetClientName(client, playername, sizeof(playername));
-
-  if(playerStatus[client] == QUEUE)
-  {
-    leaveQueue(client);
-    PrintToChatAll("%s removed from queue", playername);
-  }
-  else if(playerStatus[client] == TRED || playerStatus[client] == TBLU)
-  {
-    changePlayerTeam(client, TEAM_SPEC);
-  }
-
-  for(int i = 0; i < 4 ; i++)
-  {
-    if(getRedTeamSize() + getBluTeamSize() <= 4)
-      fillTeams();
-  }
-  return Plugin_Handled;
-}
-
-public Action:Command_MyStatus(int client, int args)
-{
-  if (!isValidClient(client))
-    return Plugin_Continue;
-
-  char playername[64];
-  GetClientName(client, playername, sizeof(playername));
-
-  if(playerStatus[client] == QUEUE)
-  {
-    PrintToChatAll("%s is in QUEUE at position: %d", playername, getQueuePosition(client));
-  }
-  else if(playerStatus[client] == TSPEC)
-  {
-    PrintToChatAll("%s is in SPEC", playername);
-  }
-  else if(playerStatus[client] == TRED)
-  {
-    PrintToChatAll("%s is on RED TEAM", playername);
-  }
-  else if(playerStatus[client] == TBLU)
-  {
-    PrintToChatAll("%s is on BLU TEAM", playername);
-  } else {
-    PrintToChatAll("%s is UNKNOWN", playername);
-  }
-
   return Plugin_Handled;
 }
 
@@ -611,12 +567,12 @@ public Action:Command_Punt(int client, int args)
   char playername[64];
   GetClientName(targ, playername, sizeof(playername));
 
-  if(playerStatus[targ] == QUEUE)
+  if(playerStatus[targ] == TEAM_QUEUE)
   {
     leaveQueue(targ);
     PrintToChatAll("%s removed from queue", playername);
   }
-  else if(playerStatus[targ] == TRED || playerStatus[targ] == TBLU)
+  else if(playerStatus[targ] == TEAM_RED || playerStatus[targ] == TEAM_BLU)
   {
     changePlayerTeam(targ, TEAM_SPEC);
   }
@@ -644,6 +600,65 @@ public Action:Command_ResetStreaks(int client, int args)
   PrintToChatAll("Win Streaks Reset!");
 }
 
+public Action:Command_Remove(int client, int args)
+{
+  if (!isValidClient(client))
+    return Plugin_Continue;
+
+  char playername[64];
+  GetClientName(client, playername, sizeof(playername));
+
+  if(playerStatus[client] == TEAM_QUEUE)
+  {
+    leaveQueue(client);
+    PrintToChatAll("%s removed from queue", playername);
+  }
+  else if(playerStatus[client] == TEAM_RED || playerStatus[client] == TEAM_BLU)
+  {
+    changePlayerTeam(client, TEAM_SPEC);
+  }
+
+  for(int i = 0; i < 4 ; i++)
+  {
+    if(getRedTeamSize() + getBluTeamSize() <= 4)
+      fillTeams();
+  }
+  return Plugin_Handled;
+}
+
+public Action:Command_MyStatus(int client, int args)
+{
+  if (!isValidClient(client))
+    return Plugin_Continue;
+
+  char playername[64];
+  GetClientName(client, playername, sizeof(playername));
+
+  if(playerStatus[client] == TEAM_QUEUE)
+  {
+    PrintToChatAll("%s is in QUEUE at position: %d", playername, getQueuePosition(client));
+  }
+  else if(playerStatus[client] == TEAM_SPEC)
+  {
+    PrintToChatAll("%s is in SPEC", playername);
+  }
+  else if(playerStatus[client] == TEAM_RED)
+  {
+    PrintToChatAll("%s is on RED TEAM", playername);
+  }
+  else if(playerStatus[client] == TEAM_BLU)
+  {
+    PrintToChatAll("%s is on BLU TEAM", playername);
+  } else {
+    PrintToChatAll("%s is UNKNOWN", playername);
+  }
+  return Plugin_Handled;
+}
+
+
+// ============================================================================
+// Timers
+// ============================================================================
 public Action:Timer_Welcome(Handle timer, any userid)
 {
   int client = GetClientOfUserId(userid);
@@ -653,8 +668,19 @@ public Action:Timer_Welcome(Handle timer, any userid)
   PrintToChat(client, "Welcome to KOTH BBALL, use !add to join the game.");
 }
 
+public Action:scrambleRed(Handle timer)
+{
+  rotateTeams(TEAM_RED);
+}
+public Action:scrambleBlu(Handle timer)
+{
+  rotateTeams(TEAM_BLU);
+}
 
+
+// ============================================================================
 // SQL
+// ============================================================================
 public SQL_setup()
 {
   char error[256];
