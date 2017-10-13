@@ -8,7 +8,7 @@
 #define TEAM_SPEC 1
 #define TEAM_RED 2
 #define TEAM_BLU 3
-#define TEAM_QUEUE 0
+#define TEAM_QUEUE 4
 #define TEAM_SIZE 2
 
 public Plugin kothbball =
@@ -16,7 +16,7 @@ public Plugin kothbball =
     name = "KOTH BBALL",
     author = "Pye",
     description = "KOTH mode for TF2BBALL",
-    version = "0.1.0",
+    version = "0.2.0",
     url = "http://www.sourcemod.net/"
 };
 
@@ -25,6 +25,9 @@ public Plugin kothbball =
 // Server Variables 
 // ============================================================================
 Database db;
+
+ConVar cvar_EnableKothBball;
+
 int serverQueue[MAXPLAYERS+1];
 int redTeam[TEAM_SIZE];
 int bluTeam[TEAM_SIZE];
@@ -48,6 +51,8 @@ int playerStatus[MAXPLAYERS+1];
 // ============================================================================
 public OnPluginStart()
 {
+  cvar_EnableKothBball = CreateConVar("kothbball_enabled", "1", "Enable/Disable KOTHBBALL");
+
   RegConsoleCmd("add", Command_Add, "Add to game.");
   RegConsoleCmd("remove", Command_Remove, "Remove from game.");
   RegConsoleCmd("spectate", Command_JoinTeam, "Remove from game.");
@@ -61,11 +66,13 @@ public OnPluginStart()
 
 public OnMapStart()
 {
-    HookEvent("teamplay_round_win", Event_RoundEnd, EventHookMode_Pre);
+  HookEvent("teamplay_round_win", Event_RoundEnd, EventHookMode_Pre);
 }
 
 public OnConfigsExecuted()
 {
+  if(GetConVarBool(cvar_EnableKothBball))
+  {
     ServerCommand("sm_respawn_time_enabled 1");
     ServerCommand("sm_respawn_time_blue 2");
     ServerCommand("sm_respawn_time_red 2");
@@ -79,62 +86,71 @@ public OnConfigsExecuted()
     ServerCommand("tf_tournament_classlimit_medic 0");
     ServerCommand("tf_tournament_classlimit_sniper 0");
     ServerCommand("tf_tournament_classlimit_spy 0");
+  } else {
+    ServerCommand("sm_respawn_time_enabled 0");
+  }
+
 }
 
 public OnMapEnd()
 {
-    UnhookEvent("teamplay_round_win", Event_RoundEnd, EventHookMode_Pre);
+  UnhookEvent("teamplay_round_win", Event_RoundEnd, EventHookMode_Pre);
 }
 
 public OnClientDisconnect(int client)
 {
-  if (isValidClient(client))
+  if(GetConVarBool(cvar_EnableKothBball))
   {
-    char playername[64];
-    GetClientName(client, playername, sizeof(playername));
-    PrintToChatAll("%s - removed from queue", playername);
+    if (isValidClient(client))
+    {
+      char playername[64];
+      GetClientName(client, playername, sizeof(playername));
+      PrintToChatAll("%s - removed from queue", playername);
 
-    if(playerStatus[client] == TEAM_QUEUE)
-    {
-      leaveQueue(client);
-    }
-    else if(playerStatus[client] == TEAM_RED || playerStatus[client] == TEAM_BLU)
-    {
-      for(int i = 0; i < TEAM_SIZE; i++)
+      if(playerStatus[client] == TEAM_QUEUE)
       {
-        if(redTeam[i] == client)
+        leaveQueue(client);
+      }
+      else if(playerStatus[client] == TEAM_RED || playerStatus[client] == TEAM_BLU)
+      {
+        for(int i = 0; i < TEAM_SIZE; i++)
         {
-          redTeam[i] = 0;
-          playerStatus[client] = TEAM_SPEC;
-        }
-        else if(bluTeam[i] == client)
-        {
-          bluTeam[i] = 0;
-          playerStatus[client] = TEAM_SPEC;
+          if(redTeam[i] == client)
+          {
+            redTeam[i] = 0;
+            playerStatus[client] = TEAM_SPEC;
+          }
+          else if(bluTeam[i] == client)
+          {
+            bluTeam[i] = 0;
+            playerStatus[client] = TEAM_SPEC;
+          }
         }
       }
+      fillTeams();
     }
-    fillTeams();
   }
 }
 
 public OnClientPostAdminCheck(int client)
 {
-  if (isValidClient(client))
+  if(GetConVarBool(cvar_EnableKothBball))
   {
-    playerStatus[client] = TEAM_SPEC;
-    PrintCenterText(client, "Use !add to join the game, !remove to return to spectator");
+    if (isValidClient(client))
+    {
+      playerStatus[client] = TEAM_SPEC;
+      PrintCenterText(client, "Use !add to join the game, !remove to return to spectator");
+      player_WelcomeTimer[client] = CreateTimer(10.0, Timer_Welcome, GetClientUserId(client));
 
-    player_WelcomeTimer[client] = CreateTimer(10.0, Timer_Welcome, GetClientUserId(client));
-
-    char query[256];
-    char sqlDirtySteamId[31];
-    char sqlSteamId[64];
-    GetClientAuthId(client, AuthId_Steam2, sqlDirtySteamId, sizeof(sqlDirtySteamId));
-    SQL_EscapeString(db, sqlDirtySteamId, sqlSteamId, sizeof(sqlSteamId));
-    strcopy(player_SteamId[client], 32, sqlSteamId);
-    Format(query, sizeof(query), "SELECT wins, losses, topstreak FROM kothbball_stats WHERE steamid='%s' LIMIT 1", sqlSteamId);
-    SQL_TQuery(db, SQL_OnConnectQuery, query, client);
+      char query[256];
+      char sqlDirtySteamId[31];
+      char sqlSteamId[64];
+      GetClientAuthId(client, AuthId_Steam2, sqlDirtySteamId, sizeof(sqlDirtySteamId));
+      SQL_EscapeString(db, sqlDirtySteamId, sqlSteamId, sizeof(sqlSteamId));
+      strcopy(player_SteamId[client], 32, sqlSteamId);
+      Format(query, sizeof(query), "SELECT wins, losses, topstreak FROM kothbball_stats WHERE steamid='%s' LIMIT 1", sqlSteamId);
+      SQL_TQuery(db, SQL_OnConnectQuery, query, client);
+    }
   }
 }
 
@@ -230,31 +246,43 @@ void assignPlayer(int player, bool toQueue=false)
 
 void fillTeams()
 {
-  int player;
   int redTeamSize = getRedTeamSize();
   int bluTeamSize = getBluTeamSize();
   int queueSize = getQueueSize();
   for(int i = 0; i < 4; i++)
   {
-    if(redTeamSize == 2 && bluTeamSize == 2)
-      return;
-
-    if(redTeamSize - bluTeamSize >= 1 && queueSize == 0)
-    {
-      if(redTeam[1] != 0)
-        assignPlayer(redTeam[1], true);
-      else if(bluTeam[1] != 0)
-        assignPlayer(bluTeam[1], true);
-    }
-
-    else if(queueSize > 0)
-    {
-      player = popQueue();
-      assignPlayer(player);
-    }
     redTeamSize = getRedTeamSize();
     bluTeamSize = getBluTeamSize();
     queueSize = getQueueSize();
+    PrintToChatAll("RED %d BLU %d QUEUE %d", redTeamSize, bluTeamSize, queueSize);
+
+    if(queueSize == 0 || (redTeamSize == 2 && bluTeamSize == 2))
+    {
+      if(redTeamSize - bluTeamSize > 1)
+      {
+        assignPlayer(redTeam[1]);
+        break;
+      } else if(bluTeamSize - redTeamSize > 1) {
+        assignPlayer(bluTeam[1]);
+        break;
+      } else if(redTeamSize - bluTeamSize == 1) {
+        assignPlayer(redTeam[1], true);
+        break;
+      } else if (bluTeamSize - redTeamSize == 1) {
+        assignPlayer(bluTeam[1], true);
+        break;
+      }
+    }  
+
+    if (redTeamSize == 1 && bluTeamSize == 1 && queueSize <= 1)
+    {
+      break;
+    }
+    else
+    {
+      assignPlayer(popQueue());
+      break;
+    }
   }
 }
 
@@ -391,6 +419,9 @@ int getQueuePosition(int client)
 // ============================================================================
 public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 {
+  if(!GetConVarBool(cvar_EnableKothBball))
+    return Plugin_Continue;
+
   int winners[TEAM_SIZE];
   int losers[TEAM_SIZE];
   int winner = GetEventInt(event, "team");
@@ -410,14 +441,16 @@ public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadca
   for(int i = 0; i < TEAM_SIZE; i++)
   {
     player_Streak[winners[i]]++;
+    if(player_Streak[losers[i]] > 1)
+      PrintToChatAll("%s just lost their %d game winning streak!", player_Name[losers[i]], player_Streak[losers[i]]);
+    if(player_Streak[winners[i]] > 1)
+      PrintToChatAll("%s is on a %d game winning streak!", player_Name[winners[i]], player_Streak[winners[i]]);
     player_Streak[losers[i]] = 0;
     if(player_Streak[winners[i]] > player_TopStreak[winners[i]])
     {
       player_TopStreak[winners[i]] = player_Streak[winners[i]];
       SQL_updateTopStreak(winners[i], player_TopStreak[winners[i]]);
     }
-    if(winners[i] != 0)
-      PrintToChatAll("%s is on a %d game winning streak.", player_Name[winners[i]], player_Streak[winners[i]]);
   }
 
   PrintCenterTextAll(">>>>>| GAME END - SHUFFLING TEAMS |<<<<<");
@@ -431,6 +464,9 @@ public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadca
 // ============================================================================
 public Action:Command_JoinTeam(int client, int args)
 {
+  if(!GetConVarBool(cvar_EnableKothBball))
+    return Plugin_Continue;
+
   if (!isValidClient(client))
     return Plugin_Continue;
 
@@ -480,6 +516,9 @@ public Action:Command_Add(int client, int args)
 
 public Action:Command_Punt(int client, int args)
 {
+  if(!GetConVarBool(cvar_EnableKothBball))
+    return Plugin_Continue;
+
   if (!isValidClient(client))
     return Plugin_Continue;
 
@@ -518,21 +557,32 @@ public Action:Command_Punt(int client, int args)
 
 public Action:Command_Streaks(int client, int args)
 {
+  if(!GetConVarBool(cvar_EnableKothBball))
+    return Plugin_Continue;
+
   char query[256];
   Format(query, sizeof(query), "SELECT topstreak,name FROM kothbball_stats ORDER BY topstreak DESC LIMIT 5");
   SQL_TQuery(db, SQL_TopStreaks, query);
+  return Plugin_Handled;
 }
 
 public Action:Command_ResetStreaks(int client, int args)
 {
+  if(!GetConVarBool(cvar_EnableKothBball))
+    return Plugin_Continue;
+
   char query[256]
   Format(query, sizeof(query), "UPDATE kothbball_stats SET topstreak=%d", 0);
   SQL_TQuery(db, SQL_ErrorCheckCallback, query);
   PrintToChatAll("Win Streaks Reset!");
+  return Plugin_Handled;
 }
 
 public Action:Command_Remove(int client, int args)
 {
+  if(!GetConVarBool(cvar_EnableKothBball))
+    return Plugin_Continue;
+
   if (!isValidClient(client))
     return Plugin_Continue;
 
@@ -555,6 +605,9 @@ public Action:Command_Remove(int client, int args)
 
 public Action:Command_MyStatus(int client, int args)
 {
+  if(!GetConVarBool(cvar_EnableKothBball))
+    return Plugin_Continue;
+
   if (!isValidClient(client))
     return Plugin_Continue;
 
