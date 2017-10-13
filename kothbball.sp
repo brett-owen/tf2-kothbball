@@ -51,7 +51,7 @@ int playerStatus[MAXPLAYERS+1];
 // ============================================================================
 public OnPluginStart()
 {
-  cvar_EnableKothBball = CreateConVar("kothbball_enabled", "1", "Enable/Disable KOTHBBALL");
+  cvar_EnableKothBball = CreateConVar("kothbball_enabled", "0", "Enable/Disable KOTHBBALL");
 
   RegConsoleCmd("add", Command_Add, "Add to game.");
   RegConsoleCmd("remove", Command_Remove, "Remove from game.");
@@ -77,15 +77,7 @@ public OnConfigsExecuted()
     ServerCommand("sm_respawn_time_blue 2");
     ServerCommand("sm_respawn_time_red 2");
 
-    ServerCommand("tf_tournament_classlimit_scout 0");
-    ServerCommand("tf_tournament_classlimit_soldier 2");
-    ServerCommand("tf_tournament_classlimit_pyro 0");
-    ServerCommand("tf_tournament_classlimit_demoman 0");
-    ServerCommand("tf_tournament_classlimit_heavy 0");
-    ServerCommand("tf_tournament_classlimit_engineer 0");
-    ServerCommand("tf_tournament_classlimit_medic 0");
-    ServerCommand("tf_tournament_classlimit_sniper 0");
-    ServerCommand("tf_tournament_classlimit_spy 0");
+    ServerCommand("exec bball.cfg");
   } else {
     ServerCommand("sm_respawn_time_enabled 0");
   }
@@ -140,7 +132,7 @@ public OnClientPostAdminCheck(int client)
     {
       playerStatus[client] = TEAM_SPEC;
       PrintCenterText(client, "Use !add to join the game, !remove to return to spectator");
-      player_WelcomeTimer[client] = CreateTimer(10.0, Timer_Welcome, GetClientUserId(client));
+      player_WelcomeTimer[client] = CreateTimer(15.0, Timer_Welcome, GetClientUserId(client));
 
       char query[256];
       char sqlDirtySteamId[31];
@@ -254,8 +246,6 @@ void fillTeams()
     redTeamSize = getRedTeamSize();
     bluTeamSize = getBluTeamSize();
     queueSize = getQueueSize();
-    PrintToChatAll("RED %d BLU %d QUEUE %d", redTeamSize, bluTeamSize, queueSize);
-
     if(queueSize == 0 || (redTeamSize == 2 && bluTeamSize == 2))
     {
       if(redTeamSize - bluTeamSize > 1)
