@@ -114,11 +114,7 @@ public OnClientDisconnect(int client)
         }
       }
     }
-    for(int i = 0; i < 4 ; i++)
-    {
-      if(getRedTeamSize() + getBluTeamSize() <= 4)
-        fillTeams();
-    }
+    fillTeams();
   }
 }
 
@@ -141,6 +137,7 @@ public OnClientPostAdminCheck(int client)
     SQL_TQuery(db, SQL_OnConnectQuery, query, client);
   }
 }
+
 
 // ============================================================================
 // Queue 
@@ -214,107 +211,50 @@ int popQueue()
 // ============================================================================
 // Team Balance Logic
 // ============================================================================
-bool fillTeams()
+
+void assignPlayer(int player, bool toQueue=false)
+{
+  if(toQueue)
+  {
+    changePlayerTeam(player, TEAM_SPEC);
+    joinQueue(player);
+    return;
+  }
+  if(getRedTeamSize() > getBluTeamSize())
+  {
+    changePlayerTeam(player, TEAM_BLU);
+  } else {
+    changePlayerTeam(player, TEAM_RED);
+  }
+}
+
+void fillTeams()
 {
   int player;
   int redTeamSize = getRedTeamSize();
   int bluTeamSize = getBluTeamSize();
   int queueSize = getQueueSize();
-  if(queueSize == 0 || (redTeamSize == 2 && bluTeamSize == 2))
+  for(int i = 0; i < 4; i++)
   {
-    if(redTeamSize - bluTeamSize > 1)
+    if(redTeamSize == 2 && bluTeamSize == 2)
+      return;
+
+    if(redTeamSize - bluTeamSize >= 1 && queueSize == 0)
     {
       if(redTeam[1] != 0)
-      {
-        player = redTeam[1]
-        changePlayerTeam(player, TEAM_BLU);
-        return true;
-      }
-    } else if(bluTeamSize - redTeamSize > 1) {
-      if(bluTeam[1] != 0)
-      {
-        player = bluTeam[1]
-        changePlayerTeam(player, TEAM_BLU);
-        return true;
-      }
-    } else if(redTeamSize - bluTeamSize == 1)
-    {
-      if(redTeam[1] != 0)
-      {
-        player = redTeam[1]
-        changePlayerTeam(player, TEAM_SPEC);
-        joinQueue(player);
-        return true;
-      }
-    } else if (bluTeamSize - redTeamSize == 1)
-    {
-      if(bluTeam[1] != 0)
-      {
-        player = bluTeam[1]
-        changePlayerTeam(player, TEAM_SPEC);
-        joinQueue(player);
-        return true;
-      }
-    }
-    return false;
-  }
-  if (redTeamSize == 1 && bluTeamSize == 1 && queueSize <= 1)
-    return false;
-
-  if(redTeamSize > bluTeamSize)
-  {
-    player = popQueue();
-    changePlayerTeam(player, TEAM_BLU);
-    return true;
-  } else {
-    player = popQueue();
-    changePlayerTeam(player, TEAM_RED);
-    return true;
-  }
-}
-
-bool rotateTeams(int winner)
-{
-  int loser, loser0, loser1;
-  int winner0, winner1;
-  if(winner == TEAM_RED)
-  {
-    loser = TEAM_BLU;
-    loser0 = bluTeam[0];
-    loser1 = bluTeam[1];
-    winner0 = redTeam[0];
-    winner1 = redTeam[1];
-  } else if (winner == TEAM_BLU)
-  {
-    loser = TEAM_RED;
-    loser0 = redTeam[0];
-    loser1 = redTeam[1];
-    winner0 = bluTeam[0];
-    winner1 = bluTeam[1];
-  }
-  if (getRedTeamSize() == 1)
-  {
-    changePlayerTeam(loser0, TEAM_SPEC);
-    changePlayerTeam(winner0, loser);
-    joinQueue(loser0);
-    for(int i = 0; i < 4 ; i++)
-    {
-      if(getRedTeamSize() + getBluTeamSize() <= 4)
-        fillTeams();
+        assignPlayer(redTeam[1], true);
+      else if(bluTeam[1] != 0)
+        assignPlayer(bluTeam[1], true);
     }
 
-  } else {
-    changePlayerTeam(loser0, TEAM_SPEC);
-    changePlayerTeam(loser1, TEAM_SPEC);
-    changePlayerTeam(winner0, loser);
-    changePlayerTeam(winner1, winner);
-    joinQueue(loser0);
-    joinQueue(loser1);
-    for(int i = 0; i < 4 ; i++)
+    else if(queueSize > 0)
     {
-      if(getRedTeamSize() + getBluTeamSize() <= 4)
-        fillTeams();
+      player = popQueue();
+      assignPlayer(player);
     }
+    redTeamSize = getRedTeamSize();
+    bluTeamSize = getBluTeamSize();
+    queueSize = getQueueSize();
   }
 }
 
@@ -379,15 +319,15 @@ bool changePlayerTeam(player, team)
 // ============================================================================
 bool isValidClient(int client)
 {
-	if(client < 1 || client > MaxClients)
-		return false;
-	if(!IsClientConnected(client))
-		return false;
-	if(IsClientInKickQueue(client))
-		return false;
-	if(IsClientSourceTV(client))
-		return false;
-	return IsClientInGame(client);
+  if(client < 1 || client > MaxClients)
+    return false;
+  if(!IsClientConnected(client))
+    return false;
+  if(IsClientInKickQueue(client))
+    return false;
+  if(IsClientSourceTV(client))
+    return false;
+  return IsClientInGame(client);
 }
 
 int getRedTeamSize()
@@ -400,7 +340,7 @@ int getRedTeamSize()
     {
       size++;
     }
-   index++; 
+    index++; 
   }
   return size;
 }
@@ -415,7 +355,7 @@ int getBluTeamSize()
     {
       size++;
     }
-   index++; 
+    index++; 
   }
   return size;
 }
@@ -430,7 +370,7 @@ int getQueueSize()
     {
       size++;
     }
-   index++; 
+    index++; 
   }
   return size;
 }
@@ -458,14 +398,14 @@ public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadca
   {
     winners = redTeam;
     losers = bluTeam;
-    CreateTimer(5.0, scrambleRed);
   }
   if(winner == TEAM_BLU)
   {
     winners = bluTeam;
     losers = redTeam;
-    CreateTimer(5.0, scrambleBlu);
   }
+
+  CreateTimer(5.0, Timer_ShuffleTeams, winner);
 
   for(int i = 0; i < TEAM_SIZE; i++)
   {
@@ -480,7 +420,7 @@ public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadca
       PrintToChatAll("%s is on a %d game winning streak.", player_Name[winners[i]], player_Streak[winners[i]]);
   }
 
-  PrintCenterTextAll(">>>>>| GAME END - SPLITTING TEAMS |<<<<<");
+  PrintCenterTextAll(">>>>>| GAME END - SHUFFLING TEAMS |<<<<<");
   SetEventInt(event, "silent", true);
   return Plugin_Continue;
 }
@@ -507,8 +447,7 @@ public Action:Command_JoinTeam(int client, int args)
     changePlayerTeam(client, TEAM_BLU);
   }
 
-  if(getRedTeamSize() + getBluTeamSize() <= 4)
-    fillTeams();
+  fillTeams();
   return Plugin_Handled;
 }
 
@@ -535,11 +474,7 @@ public Action:Command_Add(int client, int args)
     PrintToChatAll("%s is already in game!", playername);
   }
 
-  for(int i = 0; i < 4 ; i++)
-  {
-    if(getRedTeamSize() + getBluTeamSize() <= 4)
-      fillTeams();
-  }
+  fillTeams();
   return Plugin_Handled;
 }
 
@@ -577,11 +512,7 @@ public Action:Command_Punt(int client, int args)
     changePlayerTeam(targ, TEAM_SPEC);
   }
 
-  for(int i = 0; i < 4 ; i++)
-  {
-    if(getRedTeamSize() + getBluTeamSize() <= 4)
-      fillTeams();
-  }
+  fillTeams();
   return Plugin_Handled;
 }
 
@@ -618,11 +549,7 @@ public Action:Command_Remove(int client, int args)
     changePlayerTeam(client, TEAM_SPEC);
   }
 
-  for(int i = 0; i < 4 ; i++)
-  {
-    if(getRedTeamSize() + getBluTeamSize() <= 4)
-      fillTeams();
-  }
+  fillTeams();
   return Plugin_Handled;
 }
 
@@ -668,13 +595,21 @@ public Action:Timer_Welcome(Handle timer, any userid)
   PrintToChat(client, "Welcome to KOTH BBALL, use !add to join the game.");
 }
 
-public Action:scrambleRed(Handle timer)
+public Action:Timer_ShuffleTeams(Handle timer, any winner)
 {
-  rotateTeams(TEAM_RED);
-}
-public Action:scrambleBlu(Handle timer)
-{
-  rotateTeams(TEAM_BLU);
+  if(winner == TEAM_RED)
+  {
+    assignPlayer(bluTeam[0], true);
+    assignPlayer(bluTeam[1], true);
+    assignPlayer(redTeam[1]);
+  }
+  else if(winner == TEAM_BLU)
+  {
+    assignPlayer(redTeam[0], true);
+    assignPlayer(redTeam[1], true);
+    assignPlayer(bluTeam[1]);
+  }
+  fillTeams();
 }
 
 
@@ -701,11 +636,11 @@ public SQL_updateTopStreak(int client, int topstreak)
 
 public SQL_TopStreaks(Handle owner, Handle cb, const String:error[], int client)
 {
-	if(cb==INVALID_HANDLE)
-	{
-		LogError("getTopStreaks failed: %s", error);
-		return;
-	} 
+  if(cb==INVALID_HANDLE)
+  {
+    LogError("getTopStreaks failed: %s", error);
+    return;
+  } 
   char name[64];
   int streak;
   int i = 0;
@@ -723,15 +658,15 @@ public SQL_TopStreaks(Handle owner, Handle cb, const String:error[], int client)
 
 public SQL_OnConnectQuery(Handle owner, Handle cb, const String:error[], int client)
 {
-	if(cb==INVALID_HANDLE)
-	{
-		LogError("OnConnectQuery failed: %s", error);
-		return;
-	} 
+  if(cb==INVALID_HANDLE)
+  {
+    LogError("OnConnectQuery failed: %s", error);
+    return;
+  } 
   if(!isValidClient(client))
   {
-		LogError("OnConnectQuery failed: %d is invalid client", client);
-		return;
+    LogError("OnConnectQuery failed: %d is invalid client", client);
+    return;
   }
 
   char query[512];
@@ -747,8 +682,8 @@ public SQL_OnConnectQuery(Handle owner, Handle cb, const String:error[], int cli
     player_TopStreak[client] = SQL_FetchInt(cb, 2);
     player_Streak[client] = 0;
     strcopy(player_Name[client], 32, sqlName);
-		Format(query, sizeof(query), "UPDATE kothbball_stats SET name='%s' WHERE steamid='%s'", sqlName, player_SteamId[client]);
-		SQL_TQuery(db, SQL_ErrorCheckCallback, query);
+    Format(query, sizeof(query), "UPDATE kothbball_stats SET name='%s' WHERE steamid='%s'", sqlName, player_SteamId[client]);
+    SQL_TQuery(db, SQL_ErrorCheckCallback, query);
   } else {
     Format(query, sizeof(query), "INSERT INTO kothbball_stats VALUES('%s', '%s', 0, 0, 0)", player_SteamId[client], sqlName);
     SQL_TQuery(db, SQL_ErrorCheckCallback, query);
