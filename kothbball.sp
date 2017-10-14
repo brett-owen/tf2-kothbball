@@ -251,16 +251,12 @@ void fillTeams()
       if(redTeamSize - bluTeamSize > 1)
       {
         assignPlayer(redTeam[1]);
-        break;
       } else if(bluTeamSize - redTeamSize > 1) {
         assignPlayer(bluTeam[1]);
-        break;
       } else if(redTeamSize - bluTeamSize == 1) {
         assignPlayer(redTeam[1], true);
-        break;
       } else if (bluTeamSize - redTeamSize == 1) {
         assignPlayer(bluTeam[1], true);
-        break;
       }
     }  
 
@@ -271,7 +267,6 @@ void fillTeams()
     else
     {
       assignPlayer(popQueue());
-      break;
     }
   }
 }
