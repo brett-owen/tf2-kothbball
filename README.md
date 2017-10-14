@@ -18,6 +18,8 @@ Admins can use `!punt <PLAYERID>` to remove players from the queue or the game.
 
 Admins can use `!resetstreaks` to reset the top win streaks for the server.
 
-Note that this plugin **requires** the [TF2 Respawn System by WoZeR](https://forums.alliedmods.net/showthread.php?p=611953) plugin in order to properly set the respawn times to 2 seconds.
+Note: this plugin **requires** the [TF2 Respawn System by WoZeR](https://forums.alliedmods.net/showthread.php?p=611953) plugin in order to properly set the respawn times to 2 seconds.
 
-Note that this plugin **recommends** the [TFTrue](http://tftrue.esport-tools.net/) plugin in order to properly set bball whitelists.
+Note: this plugin **recommends** the [TFTrue](http://tftrue.esport-tools.net/) plugin in order to properly set bball whitelists.
+
+To quickly deploy a tf2 server with this plugin, you can check out my [tf2-docker-bball project](https://github.com/brett-owen/tf2-docker-bball).
