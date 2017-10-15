@@ -52,6 +52,7 @@ int playerStatus[MAXPLAYERS+1];
 public OnPluginStart()
 {
   cvar_EnableKothBball = CreateConVar("kothbball_enabled", "0", "Enable/Disable KOTHBBALL");
+  cvar_EnableKothBball.AddChangeHook(OnEnabledChange);
 
   RegConsoleCmd("add", Command_Add, "Add to game.");
   RegConsoleCmd("remove", Command_Remove, "Remove from game.");
@@ -66,7 +67,8 @@ public OnPluginStart()
 
 public OnMapStart()
 {
-  HookEvent("teamplay_round_win", Event_RoundEnd, EventHookMode_Pre);
+  if(GetConVarBool(cvar_EnableKothBball))
+    HookEvent("teamplay_round_win", Event_RoundEnd, EventHookMode_Pre);
 }
 
 public OnConfigsExecuted()
@@ -81,12 +83,12 @@ public OnConfigsExecuted()
   } else {
     ServerCommand("sm_respawn_time_enabled 0");
   }
-
 }
 
 public OnMapEnd()
 {
-  UnhookEvent("teamplay_round_win", Event_RoundEnd, EventHookMode_Pre);
+  if(GetConVarBool(cvar_EnableKothBball))
+    UnhookEvent("teamplay_round_win", Event_RoundEnd, EventHookMode_Pre);
 }
 
 public OnClientDisconnect(int client)
@@ -143,6 +145,28 @@ public OnClientPostAdminCheck(int client)
       Format(query, sizeof(query), "SELECT wins, losses, topstreak FROM kothbball_stats WHERE steamid='%s' LIMIT 1", sqlSteamId);
       SQL_TQuery(db, SQL_OnConnectQuery, query, client);
     }
+  }
+}
+
+public OnEnabledChange(ConVar convar, char[] oldValue, char[] newValue)
+{
+  if(StrEqual(newValue, oldValue))
+  {
+    return;
+  }
+  if(StringToInt(newValue) == 1)
+  {
+    HookEvent("teamplay_round_win", Event_RoundEnd, EventHookMode_Pre);
+    ServerCommand("sm_respawn_time_enabled 1");
+    ServerCommand("sm_respawn_time_blue 2");
+    ServerCommand("sm_respawn_time_red 2");
+
+    ServerCommand("exec bball.cfg");
+  }
+  else if (StringToInt(newValue) == 0)
+  {
+    UnhookEvent("teamplay_round_win", Event_RoundEnd, EventHookMode_Pre);
+    ServerCommand("sm_respawn_time_enabled 0");
   }
 }
 
