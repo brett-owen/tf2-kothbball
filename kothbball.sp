@@ -241,11 +241,21 @@ void fillTeams()
   int redTeamSize = getRedTeamSize();
   int bluTeamSize = getBluTeamSize();
   int queueSize = getQueueSize();
-  for(int i = 0; i < 4; i++)
+  for(int i = 0; i < 2; i++)
   {
     redTeamSize = getRedTeamSize();
     bluTeamSize = getBluTeamSize();
     queueSize = getQueueSize();
+
+    if (redTeamSize == 1 && bluTeamSize == 1 && queueSize <= 1)
+    {
+      return;
+    }
+    if (redTeamSize == 2 && bluTeamSize == 2)
+    {
+      return;
+    }
+
     if(queueSize == 0 || (redTeamSize == 2 && bluTeamSize == 2))
     {
       if(redTeamSize - bluTeamSize > 1)
