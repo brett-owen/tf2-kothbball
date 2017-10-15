@@ -247,10 +247,6 @@ void fillTeams()
     bluTeamSize = getBluTeamSize();
     queueSize = getQueueSize();
 
-    if (redTeamSize == 1 && bluTeamSize == 1 && queueSize <= 1)
-    {
-      return;
-    }
     if (redTeamSize == 2 && bluTeamSize == 2)
     {
       return;
