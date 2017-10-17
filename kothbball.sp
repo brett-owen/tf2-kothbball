@@ -16,7 +16,7 @@ public Plugin kothbball =
     name = "KOTH BBALL",
     author = "Pye",
     description = "KOTH mode for TF2BBALL",
-    version = "0.2.0",
+    version = "0.3.0",
     url = "http://www.sourcemod.net/"
 };
 
@@ -445,11 +445,25 @@ public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadca
     winners = redTeam;
     losers = bluTeam;
   }
-  if(winner == TEAM_BLU)
+  else if(winner == TEAM_BLU)
   {
     winners = bluTeam;
     losers = redTeam;
+  } else {
+    for(int i = 0; i < TEAM_SIZE; i++)
+    {
+      if(player_Streak[redTeam[i]] > 1)
+        PrintToChatAll("%s just lost their %d game winning streak!", player_Name[redTeam[i]], player_Streak[redTeam[i]]);
+      if(player_Streak[bluTeam[i]] > 1)
+        PrintToChatAll("%s just lost their %d game winning streak!", player_Name[bluTeam[i]], player_Streak[bluTeam[i]]);
+      player_Streak[redTeam[i]] = 0;
+      player_Streak[bluTeam[i]] = 0;
+      assignPlayer(redTeam[i], true);
+      assignPlayer(bluTeam[i], true);
+      return Plugin_Continue;
+    }
   }
+
 
   CreateTimer(5.0, Timer_ShuffleTeams, winner);
 
