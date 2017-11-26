@@ -58,8 +58,9 @@ public OnPluginStart()
   RegConsoleCmd("remove", Command_Remove, "Remove from game.");
   RegConsoleCmd("spectate", Command_JoinTeam, "Remove from game.");
   RegConsoleCmd("jointeam", Command_JoinTeam, "jointeam");
-  RegConsoleCmd("mystatus", Command_MyStatus, "Print the queue");
+  RegConsoleCmd("status", Command_MyStatus, "Print the queue");
   RegConsoleCmd("streaks", Command_Streaks, "Show top streaks");
+  RegConsoleCmd("upnext", Command_Streaks, "Show top streaks");
   RegAdminCmd("punt", Command_Punt, ADMFLAG_GENERIC, "Removes player by id (from console) from queue");
   RegAdminCmd("resetstreaks", Command_ResetStreaks, ADMFLAG_GENERIC, "Resets Server Top Streaks");
   SQL_setup();
@@ -99,7 +100,7 @@ public OnClientDisconnect(int client)
     {
       char playername[64];
       GetClientName(client, playername, sizeof(playername));
-      PrintToChatAll("%s - removed from queue", playername);
+      PrintToChatAll("%s - Left the game, Removed from queue.", playername);
 
       if(playerStatus[client] == TEAM_QUEUE)
       {
@@ -528,7 +529,7 @@ public Action:Command_Add(int client, int args)
   if(playerStatus[client] == TEAM_SPEC)
   {
     joinQueue(client);
-    PrintToChatAll("%s added to queue at position: %d", playername, getQueuePosition(client));
+    PrintToChatAll("%s added to queue. Current position: %d", playername, getQueuePosition(client)+1);
   }
   else if(playerStatus[client] == TEAM_QUEUE)
   {
@@ -664,6 +665,35 @@ public Action:Command_MyStatus(int client, int args)
   return Plugin_Handled;
 }
 
+public Action:Command_UpNext(int client, int args)
+{
+  if(!GetConVarBool(cvar_EnableKothBball))
+    return Plugin_Continue;
+
+  if (!isValidClient(client))
+    return Plugin_Continue;
+
+  char playername[64];
+  int playerid;
+  if(getQueueSize > 0)
+  {
+    PrintToChatAll("UP NEXT");
+    PrintToChatAll("-------");
+    for(int i = 0; i < MAXPLAYERS+1)
+    {
+      if(serverQueue[i] != 0)
+      {
+        GetClientName(serverQueue[i], playername, sizeof(playername));
+        PrintToChatAll("%d -- %s", i+1, playername);
+      }
+    }
+  }
+  else
+  {
+    PrintToChatAll("No players in queue.");
+  }
+  return Plugin_Handled;
+}
 
 // ============================================================================
 // Timers
@@ -674,7 +704,7 @@ public Action:Timer_Welcome(Handle timer, any userid)
   if(!isValidClient(client))
     return;
 
-  PrintToChat(client, "Welcome to KOTH BBALL, use !add to join the game.");
+  PrintToChat(client, "Welcome to KOTH BBALL, type !add in chat to join the game, !remove to return to spectator.");
 }
 
 public Action:Timer_ShuffleTeams(Handle timer, any winner)
