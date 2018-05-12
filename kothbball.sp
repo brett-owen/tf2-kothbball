@@ -58,9 +58,9 @@ public OnPluginStart()
   RegConsoleCmd("remove", Command_Remove, "Remove from game.");
   RegConsoleCmd("spectate", Command_JoinTeam, "Remove from game.");
   RegConsoleCmd("jointeam", Command_JoinTeam, "jointeam");
-  RegConsoleCmd("status", Command_MyStatus, "Print the queue");
+  RegConsoleCmd("mystatus", Command_MyStatus, "Print the queue");
   RegConsoleCmd("streaks", Command_Streaks, "Show top streaks");
-  RegConsoleCmd("upnext", Command_Streaks, "Show top streaks");
+  RegConsoleCmd("upnext", Command_UpNext, "Show top streaks");
   RegAdminCmd("punt", Command_Punt, ADMFLAG_GENERIC, "Removes player by id (from console) from queue");
   RegAdminCmd("resetstreaks", Command_ResetStreaks, ADMFLAG_GENERIC, "Resets Server Top Streaks");
   SQL_setup();
@@ -646,7 +646,7 @@ public Action:Command_MyStatus(int client, int args)
 
   if(playerStatus[client] == TEAM_QUEUE)
   {
-    PrintToChatAll("%s is in QUEUE at position: %d", playername, getQueuePosition(client));
+    PrintToChatAll("%s is in QUEUE at position: %d", playername, getQueuePosition(client) + 1);
   }
   else if(playerStatus[client] == TEAM_SPEC)
   {
@@ -674,12 +674,11 @@ public Action:Command_UpNext(int client, int args)
     return Plugin_Continue;
 
   char playername[64];
-  int playerid;
-  if(getQueueSize > 0)
+  if(getQueueSize() > 0)
   {
     PrintToChatAll("UP NEXT");
     PrintToChatAll("-------");
-    for(int i = 0; i < MAXPLAYERS+1)
+    for(int i = 0; i < MAXPLAYERS+1; i++)
     {
       if(serverQueue[i] != 0)
       {
@@ -709,17 +708,18 @@ public Action:Timer_Welcome(Handle timer, any userid)
 
 public Action:Timer_ShuffleTeams(Handle timer, any winner)
 {
+  int randPlayer = GetRandomInt(0,1);
   if(winner == TEAM_RED)
   {
     assignPlayer(bluTeam[0], true);
     assignPlayer(bluTeam[1], true);
-    assignPlayer(redTeam[1]);
+    assignPlayer(redTeam[randPlayer]);
   }
   else if(winner == TEAM_BLU)
   {
     assignPlayer(redTeam[0], true);
     assignPlayer(redTeam[1], true);
-    assignPlayer(bluTeam[1]);
+    assignPlayer(bluTeam[randPlayer]);
   }
   fillTeams();
 }
